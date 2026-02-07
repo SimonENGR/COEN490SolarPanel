@@ -20,4 +20,6 @@ public interface SolarApiService {
     // Corresponds to "handleGPS"
     @POST("/update")
     Call<SyncResponse> updateLocation(@Body LocationPayload payload);
+    @GET("/motor")
+    Call<String> controlMotor(@Query("type") String motorType, @Query("dir") int direction);
 }
