@@ -14,6 +14,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -23,10 +24,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import retrofit2.Call;
@@ -43,16 +45,22 @@ public class HomeFragment extends Fragment {
     private TextView tvTimeSinceCleaning;
     private TextView tvHorizontalTilt;
     private TextView tvAzimuth;
+    private TextView tvConnectionStatus;
+    private ImageView ivConnectionIndicator;
     private SwitchMaterial toggleMode;
     private Button btnSync;
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     // --- Networking & Logic ---
     private SolarApiService apiService;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean isRunning = false;
+    private int consecutiveFailures = 0;
+    private static final int MAX_FAILURES_BEFORE_WARNING = 3;
 
     // --- GPS Location ---
     private FusedLocationProviderClient fusedLocationClient;
+    private long lastSyncTime = 0;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -60,7 +68,7 @@ public class HomeFragment extends Fragment {
                     showSyncConfirmationDialog();
                 } else {
                     if (getContext() != null)
-                        Toast.makeText(getContext(), "Location permission needed", Toast.LENGTH_LONG).show();
+                        Toast.makeText(getContext(), "Location permission needed for GPS sync", Toast.LENGTH_LONG).show();
                 }
             });
 
@@ -79,42 +87,53 @@ public class HomeFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
+        // Initialize views
         tvMonitoringStatus = view.findViewById(R.id.tv_monitoring_status);
         tvUptime = view.findViewById(R.id.tv_uptime);
         tvTimeSinceCleaning = view.findViewById(R.id.tv_time_since_cleaning);
         tvHorizontalTilt = view.findViewById(R.id.tv_horizontal_tilt);
         tvAzimuth = view.findViewById(R.id.tv_azimuth);
+        tvConnectionStatus = view.findViewById(R.id.tv_connection_status);
+        ivConnectionIndicator = view.findViewById(R.id.iv_connection_indicator);
         toggleMode = view.findViewById(R.id.toggle_mode);
         btnSync = view.findViewById(R.id.btn_sync);
+        swipeRefreshLayout = view.findViewById(R.id.swipe_refresh);
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity());
 
         // --- DYNAMIC IP SETUP (From Provisioning) ---
-        SharedPreferences prefs = requireContext().getSharedPreferences("SolarPrefs", Context.MODE_PRIVATE);
-        String espIp = prefs.getString("esp_ip", "192.168.4.1");
+        setupRetrofit();
 
-        // Prevent trailing slash error if user entered it weirdly, though BLE sends it clean usually
-        String baseUrl = "http://" + espIp + "/";
+        // --- Swipe to Refresh ---
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            fetchSolarStatus();
+            swipeRefreshLayout.setRefreshing(false);
+        });
 
-        try {
-            Retrofit retrofit = new Retrofit.Builder()
-                    .baseUrl(baseUrl)
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build();
-            apiService = retrofit.create(SolarApiService.class);
-        } catch (Exception e) {
-            Log.e("HomeFragment", "Retrofit Init Error", e);
-        }
+        // --- Sync Button with cooldown ---
+        btnSync.setOnClickListener(v -> {
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - lastSyncTime < 5000) { // 5 second cooldown
+                Toast.makeText(getContext(), "Please wait before syncing again", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            handleSyncButtonClick();
+        });
 
-        btnSync.setOnClickListener(v -> handleSyncButtonClick());
-
+        // --- Toggle Mode Switch ---
         toggleMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (buttonView.isPressed()) {
                 toggleManualMode(isChecked);
             }
         });
 
+        // --- Load last sync time ---
+        SharedPreferences prefs = requireContext().getSharedPreferences("SolarPrefs", Context.MODE_PRIVATE);
+        lastSyncTime = prefs.getLong("last_sync_time", 0);
+
         updateHomeData();
+        updateConnectionStatus(false); // Start as disconnected
+
         return view;
     }
 
@@ -122,6 +141,7 @@ public class HomeFragment extends Fragment {
     public void onResume() {
         super.onResume();
         isRunning = true;
+        consecutiveFailures = 0;
         statusPoller.run();
     }
 
@@ -130,6 +150,43 @@ public class HomeFragment extends Fragment {
         super.onPause();
         isRunning = false;
         handler.removeCallbacks(statusPoller);
+    }
+
+    private void setupRetrofit() {
+        if (getContext() == null) return;
+
+        SharedPreferences prefs = requireContext().getSharedPreferences("SolarPrefs", Context.MODE_PRIVATE);
+        String espIp = prefs.getString("esp_ip", "192.168.4.1");
+        String baseUrl = "http://" + espIp + "/";
+
+        try {
+            Retrofit retrofit = new Retrofit.Builder()
+                    .baseUrl(baseUrl)
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build();
+            apiService = retrofit.create(SolarApiService.class);
+
+            // Update UI with IP
+            if (tvConnectionStatus != null) {
+                tvConnectionStatus.setText("ESP32 IP: " + espIp);
+            }
+        } catch (Exception e) {
+            Log.e("HomeFragment", "Retrofit Init Error", e);
+            if (getContext() != null) {
+                Toast.makeText(getContext(), "Error connecting to ESP32", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void updateConnectionStatus(boolean connected) {
+        if (getContext() == null || ivConnectionIndicator == null) return;
+
+        if (connected) {
+            ivConnectionIndicator.setImageResource(android.R.drawable.presence_online);
+            consecutiveFailures = 0;
+        } else {
+            ivConnectionIndicator.setImageResource(android.R.drawable.presence_busy);
+        }
     }
 
     private void handleSyncButtonClick() {
@@ -144,10 +201,17 @@ public class HomeFragment extends Fragment {
 
     private void showSyncConfirmationDialog() {
         if (getContext() == null) return;
+
+        SharedPreferences prefs = requireContext().getSharedPreferences("SolarPrefs", Context.MODE_PRIVATE);
+        long lastSync = prefs.getLong("last_sync_time", 0);
+        String lastSyncText = lastSync > 0 ?
+                "Last sync: " + android.text.format.DateFormat.format("MMM dd, yyyy HH:mm", lastSync) :
+                "Never synced";
+
         new AlertDialog.Builder(getContext())
                 .setTitle("Sync Location?")
-                .setMessage("This will send GPS data to the ESP32.")
-                .setPositiveButton("Yes, Sync", (dialog, which) -> getUserLocationAndSend())
+                .setMessage("This will send GPS data to the ESP32.\n\n" + lastSyncText)
+                .setPositiveButton("Sync Now", (dialog, which) -> getUserLocationAndSend())
                 .setNegativeButton("Cancel", null)
                 .show();
     }
@@ -157,22 +221,25 @@ public class HomeFragment extends Fragment {
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) return;
 
-        Toast.makeText(getContext(), "Acquiring GPS...", Toast.LENGTH_SHORT).show();
+        Snackbar.make(requireView(), "Acquiring GPS location...", Snackbar.LENGTH_SHORT).show();
 
         fusedLocationClient.getLastLocation()
                 .addOnSuccessListener(requireActivity(), location -> {
-                    // CRASH FIX: Check context inside callback
                     if (getContext() == null) return;
 
                     if (location != null) {
                         sendToESP32(location);
                     } else {
-                        Toast.makeText(getContext(), "GPS signal not found.", Toast.LENGTH_LONG).show();
+                        Snackbar.make(requireView(),
+                                "GPS signal not found. Please try outdoors.",
+                                Snackbar.LENGTH_LONG).show();
                     }
                 })
                 .addOnFailureListener(e -> {
                     if (getContext() != null)
-                        Toast.makeText(getContext(), "GPS Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        Snackbar.make(requireView(),
+                                "GPS Error: " + e.getMessage(),
+                                Snackbar.LENGTH_LONG).show();
                 });
     }
 
@@ -184,51 +251,79 @@ public class HomeFragment extends Fragment {
                 timestamp
         );
 
-        if (apiService == null) return;
+        if (apiService == null) {
+            Snackbar.make(requireView(), "Not connected to ESP32", Snackbar.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Show loading indicator
+        btnSync.setEnabled(false);
+        btnSync.setText("Syncing...");
 
         apiService.updateLocation(payload).enqueue(new Callback<SyncResponse>() {
             @Override
             public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
-                // CRASH FIX: Check context
                 if (getContext() == null) return;
 
+                btnSync.setEnabled(true);
+                btnSync.setText("Sync Location");
+
                 if (response.isSuccessful() && response.body() != null) {
-                    Toast.makeText(getContext(), "ESP32: " + response.body().message, Toast.LENGTH_LONG).show();
+                    lastSyncTime = System.currentTimeMillis();
+
+                    // Save sync time
+                    SharedPreferences prefs = requireContext().getSharedPreferences("SolarPrefs", Context.MODE_PRIVATE);
+                    prefs.edit().putLong("last_sync_time", lastSyncTime).apply();
+
+                    Snackbar.make(requireView(),
+                            "✓ " + response.body().message,
+                            Snackbar.LENGTH_LONG).show();
+                    updateConnectionStatus(true);
                 } else {
-                    Toast.makeText(getContext(), "Sync Failed.", Toast.LENGTH_SHORT).show();
+                    Snackbar.make(requireView(),
+                            "Sync failed. Check connection.",
+                            Snackbar.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<SyncResponse> call, Throwable t) {
-                // CRASH FIX: Check context
                 if (getContext() == null) return;
-                Toast.makeText(getContext(), "Connection Failed.", Toast.LENGTH_SHORT).show();
+
+                btnSync.setEnabled(true);
+                btnSync.setText("Sync Location");
+
+                Snackbar.make(requireView(),
+                                "Connection failed. Check WiFi.",
+                                Snackbar.LENGTH_LONG)
+                        .setAction("RETRY", v -> sendToESP32(location))
+                        .show();
+                updateConnectionStatus(false);
             }
         });
     }
 
     private void fetchSolarStatus() {
-        if (apiService == null) return;
+        if (apiService == null || getContext() == null) return;
 
         apiService.getStatus().enqueue(new Callback<SolarStatus>() {
             @Override
             public void onResponse(Call<SolarStatus> call, Response<SolarStatus> response) {
-                // CRASH FIX: STOP if fragment is detached
                 if (getContext() == null) return;
 
                 if (response.isSuccessful() && response.body() != null) {
                     SolarStatus s = response.body();
+                    updateConnectionStatus(true);
 
                     tvHorizontalTilt.setText(String.format("Elevation: %.1f°", s.elevation));
                     tvAzimuth.setText(String.format("Azimuth: %.1f°", s.azimuth));
 
                     if (s.override) {
-                        tvMonitoringStatus.setText("MANUAL MODE");
+                        tvMonitoringStatus.setText("⚠ MANUAL MODE");
                         tvMonitoringStatus.setTextColor(getResources().getColor(android.R.color.holo_orange_dark));
                         toggleMode.setChecked(true);
                     } else {
-                        tvMonitoringStatus.setText("AUTO TRACKING");
+                        tvMonitoringStatus.setText("✓ AUTO TRACKING");
                         tvMonitoringStatus.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
                         toggleMode.setChecked(false);
                     }
@@ -237,12 +332,24 @@ public class HomeFragment extends Fragment {
 
             @Override
             public void onFailure(Call<SolarStatus> call, Throwable t) {
-                // CRASH FIX: STOP if fragment is detached
                 if (getContext() == null) return;
 
-                // Now it is safe to use getResources()
-                tvMonitoringStatus.setText("OFFLINE / DISCONNECTED");
+                consecutiveFailures++;
+                updateConnectionStatus(false);
+
+                tvMonitoringStatus.setText("✗ OFFLINE / DISCONNECTED");
                 tvMonitoringStatus.setTextColor(getResources().getColor(android.R.color.holo_red_dark));
+
+                // Show warning after multiple failures
+                if (consecutiveFailures == MAX_FAILURES_BEFORE_WARNING) {
+                    Snackbar.make(requireView(),
+                                    "Lost connection to ESP32. Check WiFi.",
+                                    Snackbar.LENGTH_LONG)
+                            .setAction("SETTINGS", v -> {
+                                // Could open WiFi settings or retry provisioning
+                            })
+                            .show();
+                }
             }
         });
     }
@@ -253,22 +360,26 @@ public class HomeFragment extends Fragment {
         apiService.toggleMode(isManual ? 1 : 0).enqueue(new Callback<String>() {
             @Override
             public void onResponse(Call<String> call, Response<String> response) {
-                if (getContext() == null) return; // Safety check
+                if (getContext() == null) return;
+
                 String mode = isManual ? "Manual Mode ON" : "Auto Mode ON";
-                Toast.makeText(getContext(), mode, Toast.LENGTH_SHORT).show();
+                Snackbar.make(requireView(), mode, Snackbar.LENGTH_SHORT).show();
             }
 
             @Override
             public void onFailure(Call<String> call, Throwable t) {
-                if (getContext() == null) return; // Safety check
-                Toast.makeText(getContext(), "Failed to switch mode", Toast.LENGTH_SHORT).show();
-                toggleMode.setChecked(!isManual);
+                if (getContext() == null) return;
+
+                Snackbar.make(requireView(),
+                        "Failed to switch mode",
+                        Snackbar.LENGTH_SHORT).show();
+                toggleMode.setChecked(!isManual); // Revert switch
             }
         });
     }
 
     private void updateHomeData() {
-        tvUptime.setText("System Uptime: Syncing...");
-        tvTimeSinceCleaning.setText("Last Cleaning: ...");
+        tvUptime.setText("System Uptime: Connecting...");
+        tvTimeSinceCleaning.setText("Last Cleaning: Syncing...");
     }
 }

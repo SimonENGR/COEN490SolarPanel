@@ -3,8 +3,11 @@ package com.example.coen490solarpanel;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -13,7 +16,10 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
+
+import com.google.android.material.snackbar.Snackbar;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -29,6 +35,7 @@ public class StatusFragment extends Fragment {
     private TextView tvPanelSensor;
     private TextView tvCurrentEnergy;
     private TextView tvMeanEnergy;
+    private TextView tvMotorStatus;
 
     // --- Motor Buttons ---
     private Button btnCleanUp, btnCleanDown;
@@ -37,6 +44,11 @@ public class StatusFragment extends Fragment {
 
     // --- Networking ---
     private SolarApiService apiService;
+    private Vibrator vibrator;
+
+    // --- Motor State Tracking ---
+    private boolean isMotorActive = false;
+    private String activeMotor = "";
 
     @Nullable
     @Override
@@ -49,6 +61,7 @@ public class StatusFragment extends Fragment {
         tvPanelSensor = view.findViewById(R.id.tv_panel_sensor);
         tvCurrentEnergy = view.findViewById(R.id.tv_current_energy);
         tvMeanEnergy = view.findViewById(R.id.tv_mean_energy);
+        tvMotorStatus = view.findViewById(R.id.tv_motor_status);
 
         // 2. Initialize Motor Buttons
         btnCleanUp = view.findViewById(R.id.btn_clean_up);
@@ -57,20 +70,32 @@ public class StatusFragment extends Fragment {
         btnTiltDown = view.findViewById(R.id.btn_tilt_down);
         btnStopAll = view.findViewById(R.id.btn_stop_all);
 
-        // 3. Setup Network Connection
+        // 3. Get Vibrator Service
+        vibrator = (Vibrator) requireContext().getSystemService(Context.VIBRATOR_SERVICE);
+
+        // 4. Setup Network Connection
         setupApiService();
 
-        // 4. Set Button Listeners (1 = Up/Fwd, -1 = Down/Rev, 0 = Stop)
-        btnCleanUp.setOnClickListener(v -> sendMotorCommand("clean", 1));
-        btnCleanDown.setOnClickListener(v -> sendMotorCommand("clean", -1));
+        // 5. Set up HOLD-TO-OPERATE buttons with haptic feedback
+        setupHoldToOperateButton(btnCleanUp, "clean", 1, "Cleaning ↑");
+        setupHoldToOperateButton(btnCleanDown, "clean", -1, "Cleaning ↓");
+        setupHoldToOperateButton(btnTiltUp, "tilt", 1, "Tilting ↑");
+        setupHoldToOperateButton(btnTiltDown, "tilt", -1, "Tilting ↓");
 
-        btnTiltUp.setOnClickListener(v -> sendMotorCommand("tilt", 1));
-        btnTiltDown.setOnClickListener(v -> sendMotorCommand("tilt", -1));
+        // 6. Emergency Stop with confirmation
+        btnStopAll.setOnClickListener(v -> {
+            vibrateDevice(100);
+            sendMotorCommand("all", 0);
+        });
 
-        btnStopAll.setOnClickListener(v -> sendMotorCommand("all", 0));
+        btnStopAll.setOnLongClickListener(v -> {
+            showEmergencyStopDialog();
+            return true;
+        });
 
-        // 5. Populate Data
+        // 7. Populate Data
         updateStatusData();
+        updateMotorStatus("Ready");
 
         return view;
     }
@@ -78,9 +103,8 @@ public class StatusFragment extends Fragment {
     private void setupApiService() {
         if (getContext() == null) return;
 
-        // Retrieve the IP address saved during provisioning
         SharedPreferences prefs = requireContext().getSharedPreferences("SolarPrefs", Context.MODE_PRIVATE);
-        String espIp = prefs.getString("esp_ip", "192.168.4.1"); // Default fallback
+        String espIp = prefs.getString("esp_ip", "192.168.4.1");
 
         try {
             Retrofit retrofit = new Retrofit.Builder()
@@ -93,15 +117,58 @@ public class StatusFragment extends Fragment {
         }
     }
 
+    /**
+     * Sets up a button to only operate while held down (safety feature)
+     */
+    private void setupHoldToOperateButton(Button button, String motorType, int direction, String label) {
+        button.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    // Button pressed - START motor
+                    vibrateDevice(50);
+                    sendMotorCommand(motorType, direction);
+                    updateMotorStatus(label + " ACTIVE");
+                    activeMotor = motorType;
+                    isMotorActive = true;
+                    button.setPressed(true);
+                    return true;
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    // Button released - STOP motor
+                    vibrateDevice(30);
+                    sendMotorCommand(motorType, 0); // Stop
+                    updateMotorStatus("Ready");
+                    isMotorActive = false;
+                    button.setPressed(false);
+                    return true;
+            }
+            return false;
+        });
+    }
+
+    private void vibrateDevice(long duration) {
+        if (vibrator != null && vibrator.hasVibrator()) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                vibrator.vibrate(duration);
+            }
+        }
+    }
+
     private void sendMotorCommand(String type, int dir) {
         if (apiService == null) {
-            Toast.makeText(getContext(), "Error: Not connected to ESP32", Toast.LENGTH_SHORT).show();
+            Snackbar.make(requireView(), "Not connected to ESP32", Snackbar.LENGTH_SHORT).show();
             return;
         }
 
         // Visual feedback
-        String directionText = (dir == 1) ? "FWD/UP" : (dir == -1) ? "REV/DOWN" : "STOP";
-        Toast.makeText(getContext(), "Sending: " + type + " " + directionText, Toast.LENGTH_SHORT).show();
+        String directionText = (dir == 1) ? "↑" : (dir == -1) ? "↓" : "STOP";
+
+        if (dir != 0) {
+            Log.d("MotorControl", "Starting: " + type + " " + directionText);
+        }
 
         // Send API Request
         apiService.controlMotor(type, dir).enqueue(new Callback<String>() {
@@ -112,32 +179,80 @@ public class StatusFragment extends Fragment {
                 if (response.isSuccessful()) {
                     Log.d("MotorControl", "Success: " + response.body());
                 } else {
-                    Toast.makeText(getContext(), "Command Failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                    Snackbar.make(requireView(),
+                            "Command failed: " + response.code(),
+                            Snackbar.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<String> call, Throwable t) {
                 if (getContext() == null) return;
-                Toast.makeText(getContext(), "Connection Error. Check WiFi.", Toast.LENGTH_SHORT).show();
+
+                Snackbar.make(requireView(),
+                                "Connection error. Check WiFi.",
+                                Snackbar.LENGTH_LONG)
+                        .setAction("RETRY", v -> sendMotorCommand(type, dir))
+                        .show();
             }
         });
     }
 
+    private void showEmergencyStopDialog() {
+        if (getContext() == null) return;
+
+        new AlertDialog.Builder(getContext())
+                .setTitle("⚠ Emergency Stop")
+                .setMessage("This will immediately stop all motors and disable auto-tracking. Continue?")
+                .setPositiveButton("STOP ALL", (dialog, which) -> {
+                    vibrateDevice(200);
+                    sendMotorCommand("all", 0);
+                    Snackbar.make(requireView(), "✓ All motors stopped", Snackbar.LENGTH_LONG).show();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void updateMotorStatus(String status) {
+        if (tvMotorStatus != null) {
+            tvMotorStatus.setText("Motor Status: " + status);
+
+            // Color coding
+            if (status.contains("ACTIVE")) {
+                tvMotorStatus.setTextColor(getResources().getColor(android.R.color.holo_orange_dark));
+            } else if (status.equals("Ready")) {
+                tvMotorStatus.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
+            } else {
+                tvMotorStatus.setTextColor(getResources().getColor(android.R.color.primary_text_light));
+            }
+        }
+    }
+
     private void updateStatusData() {
-        // Placeholder values matching your previous file
+        // Placeholder values - these would come from actual ESP32 data
         double currentCharge = 7.8; // kWh
         double totalCapacity = 12.0; // kWh
         double batteryPercentage = (currentCharge / totalCapacity) * 100;
 
         tvBatteryStatus.setText(String.format(
-                "Battery Status: %.1f kWh / %.1f kWh (%.0f%%)",
+                "Battery: %.1f / %.1f kWh (%.0f%%)",
                 currentCharge, totalCapacity, batteryPercentage
         ));
 
+        // Add visual indicators
         tvBatterySensor.setText("Battery Sensor: ✓ Operational");
         tvPanelSensor.setText("Panel Sensor: ✓ Operational");
-        tvCurrentEnergy.setText("Current Energy Harvest: 2.4 kWh/hr");
-        tvMeanEnergy.setText("Mean Energy Harvest (Past 7 days): 1.8 kWh/hr");
+        tvCurrentEnergy.setText("Current Harvest: 2.4 kWh/hr");
+        tvMeanEnergy.setText("7-Day Average: 1.8 kWh/hr");
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        // Safety: Stop all motors when leaving the fragment
+        if (isMotorActive) {
+            sendMotorCommand(activeMotor, 0);
+            Toast.makeText(getContext(), "Motors stopped (fragment paused)", Toast.LENGTH_SHORT).show();
+        }
     }
 }

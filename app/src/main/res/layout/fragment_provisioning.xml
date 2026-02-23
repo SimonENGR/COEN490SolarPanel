@@ -1,76 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
     android:padding="24dp"
-    android:background="#F5F5F5">
+    android:gravity="center">
 
+    <!-- App Title/Logo Area -->
     <TextView
-        android:id="@+id/tv_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Setup Solar Tracker"
-        android:textSize="24sp"
+        android:text="ESP32 Solar Setup"
+        android:textSize="28sp"
         android:textStyle="bold"
-        android:textColor="#333333"
         android:layout_marginBottom="32dp"/>
 
+    <!-- Step Indicator -->
     <TextView
-        android:id="@+id/tv_prov_status"
+        android:id="@+id/tv_step_indicator"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Initializing Bluetooth..."
-        android:textSize="16sp"
-        android:textAlignment="center"
+        android:text="Step 1/3: Searching..."
+        android:textSize="14sp"
+        android:textColor="@android:color/holo_blue_dark"
         android:layout_marginBottom="16dp"/>
 
+    <!-- Status Text -->
+    <TextView
+        android:id="@+id/tv_prov_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Initializing..."
+        android:textSize="16sp"
+        android:gravity="center"
+        android:minHeight="80dp"/>
+
+    <!-- Progress Bar -->
     <ProgressBar
         android:id="@+id/pb_prov_scanning"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:layout_marginBottom="24dp"/>
+        android:layout_marginTop="16dp"
+        android:visibility="visible"/>
 
+    <!-- Retry Button -->
+    <Button
+        android:id="@+id/btn_prov_retry"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Retry Scan"
+        android:visibility="gone"
+        android:layout_marginTop="16dp"/>
+
+    <!-- WiFi Credentials Input (Initially Hidden) -->
     <LinearLayout
         android:id="@+id/layout_prov_credentials"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:visibility="gone">
+        android:visibility="gone"
+        android:layout_marginTop="24dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Enter 2.4GHz WiFi Details:"
-            android:layout_marginBottom="8dp"/>
-
-        <EditText
-            android:id="@+id/et_prov_ssid"
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_prov_ssid"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="WiFi Name (SSID)"
-            android:inputType="text"
-            android:minHeight="48dp"
-            android:layout_marginBottom="12dp"/>
+            app:errorEnabled="true">
 
-        <EditText
-            android:id="@+id/et_prov_pass"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_prov_ssid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="WiFi SSID"
+                android:inputType="text"
+                android:maxLines="1"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_prov_password"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="WiFi Password"
-            android:inputType="textPassword"
-            android:minHeight="48dp"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginTop="16dp"
+            app:errorEnabled="true"
+            app:passwordToggleEnabled="true">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_prov_pass"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="WiFi Password"
+                android:inputType="textPassword"
+                android:maxLines="1"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
         <Button
             android:id="@+id/btn_prov_connect"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Connect to WiFi"
-            android:backgroundTint="#2E7D32"
-            android:textColor="#FFFFFF"/>
+            android:layout_marginTop="24dp"
+            android:enabled="false"/>
+
     </LinearLayout>
 
 </LinearLayout>
