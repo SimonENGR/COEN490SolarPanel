@@ -357,9 +357,9 @@ public class HomeFragment extends Fragment {
     private void toggleManualMode(boolean isManual) {
         if (apiService == null) return;
 
-        apiService.toggleMode(isManual ? 1 : 0).enqueue(new Callback<String>() {
+        apiService.toggleMode(isManual ? 1 : 0).enqueue(new Callback<SyncResponse>() {
             @Override
-            public void onResponse(Call<String> call, Response<String> response) {
+            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
                 if (getContext() == null) return;
 
                 String mode = isManual ? "Manual Mode ON" : "Auto Mode ON";
@@ -367,7 +367,7 @@ public class HomeFragment extends Fragment {
             }
 
             @Override
-            public void onFailure(Call<String> call, Throwable t) {
+            public void onFailure(Call<SyncResponse> call, Throwable t) {
                 if (getContext() == null) return;
 
                 Snackbar.make(requireView(),

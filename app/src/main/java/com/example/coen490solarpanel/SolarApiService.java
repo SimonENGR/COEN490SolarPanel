@@ -15,11 +15,12 @@ public interface SolarApiService {
 
     // Corresponds to "handleModeControl"
     @GET("/mode")
-    Call<String> toggleMode(@Query("manual") int manualState);
+    Call<SyncResponse> toggleMode(@Query("manual") int manualState);
 
     // Corresponds to "handleGPS"
     @POST("/update")
     Call<SyncResponse> updateLocation(@Body LocationPayload payload);
+
     @GET("/motor")
-    Call<String> controlMotor(@Query("type") String motorType, @Query("dir") int direction);
+    Call<SyncResponse> controlMotor(@Query("type") String motorType, @Query("dir") int direction);
 }

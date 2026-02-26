@@ -36,6 +36,7 @@ public class StatusFragment extends Fragment {
     private TextView tvCurrentEnergy;
     private TextView tvMeanEnergy;
     private TextView tvMotorStatus;
+    private TextView tvTiltAngle;
 
     // --- Motor Buttons ---
     private Button btnCleanUp, btnCleanDown;
@@ -50,18 +51,22 @@ public class StatusFragment extends Fragment {
     private boolean isMotorActive = false;
     private String activeMotor = "";
 
+    // --- Angle Polling ---
+    private android.os.Handler angleHandler = new android.os.Handler();
+    private Runnable anglePoller;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_status, container, false);
 
-        // 1. Initialize Status Views
         tvBatteryStatus = view.findViewById(R.id.tv_battery_status);
         tvBatterySensor = view.findViewById(R.id.tv_battery_sensor);
         tvPanelSensor = view.findViewById(R.id.tv_panel_sensor);
         tvCurrentEnergy = view.findViewById(R.id.tv_current_energy);
         tvMeanEnergy = view.findViewById(R.id.tv_mean_energy);
         tvMotorStatus = view.findViewById(R.id.tv_motor_status);
+        tvTiltAngle = view.findViewById(R.id.tv_tilt_angle);
 
         // 2. Initialize Motor Buttons
         btnCleanUp = view.findViewById(R.id.btn_clean_up);
@@ -96,6 +101,20 @@ public class StatusFragment extends Fragment {
         // 7. Populate Data
         updateStatusData();
         updateMotorStatus("Ready");
+
+        // 8. Setup angle poller (always polls, faster during motor use)
+        anglePoller = new Runnable() {
+            @Override
+            public void run() {
+                fetchTiltAngle();
+                // Poll faster during motor operation, slower when idle
+                int interval = isMotorActive ? 500 : 2000;
+                angleHandler.postDelayed(this, interval);
+            }
+        };
+
+        // Start continuous polling
+        angleHandler.post(anglePoller);
 
         return view;
     }
@@ -171,13 +190,13 @@ public class StatusFragment extends Fragment {
         }
 
         // Send API Request
-        apiService.controlMotor(type, dir).enqueue(new Callback<String>() {
+        apiService.controlMotor(type, dir).enqueue(new Callback<SyncResponse>() {
             @Override
-            public void onResponse(Call<String> call, Response<String> response) {
+            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
                 if (getContext() == null) return;
 
-                if (response.isSuccessful()) {
-                    Log.d("MotorControl", "Success: " + response.body());
+                if (response.isSuccessful() && response.body() != null) {
+                    Log.d("MotorControl", "Success: " + response.body().message);
                 } else {
                     Snackbar.make(requireView(),
                             "Command failed: " + response.code(),
@@ -186,7 +205,7 @@ public class StatusFragment extends Fragment {
             }
 
             @Override
-            public void onFailure(Call<String> call, Throwable t) {
+            public void onFailure(Call<SyncResponse> call, Throwable t) {
                 if (getContext() == null) return;
 
                 Snackbar.make(requireView(),
@@ -246,9 +265,32 @@ public class StatusFragment extends Fragment {
         tvMeanEnergy.setText("7-Day Average: 1.8 kWh/hr");
     }
 
+    private void fetchTiltAngle() {
+        if (apiService == null) return;
+
+        apiService.getStatus().enqueue(new Callback<SolarStatus>() {
+            @Override
+            public void onResponse(Call<SolarStatus> call, Response<SolarStatus> response) {
+                if (getContext() == null || response.body() == null) return;
+
+                SolarStatus status = response.body();
+                if (tvTiltAngle != null) {
+                    tvTiltAngle.setText(String.format("Tilt Angle: %.1f°", status.tiltAngle));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<SolarStatus> call, Throwable t) {
+                Log.e("StatusFragment", "Angle fetch failed", t);
+            }
+        });
+    }
+
     @Override
     public void onPause() {
         super.onPause();
+        // Stop angle polling
+        angleHandler.removeCallbacks(anglePoller);
         // Safety: Stop all motors when leaving the fragment
         if (isMotorActive) {
             sendMotorCommand(activeMotor, 0);

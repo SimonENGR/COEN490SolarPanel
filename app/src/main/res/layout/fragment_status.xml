@@ -44,6 +44,19 @@
             android:text="7-Day Average: --"
             android:layout_marginTop="8dp"/>
 
+        <!-- Tilt Angle Display -->
+        <TextView
+            android:id="@+id/tv_tilt_angle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tilt Angle: 0.0°"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"
+            android:padding="16dp"
+            android:background="@drawable/rounded_background"
+            android:gravity="center"/>
+
         <!-- Motor Status Indicator -->
         <TextView
             android:id="@+id/tv_motor_status"
@@ -52,7 +65,7 @@
             android:text="Motor Status: Ready"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="12dp"
             android:padding="12dp"
             android:background="@drawable/rounded_background"
             android:gravity="center"/>
