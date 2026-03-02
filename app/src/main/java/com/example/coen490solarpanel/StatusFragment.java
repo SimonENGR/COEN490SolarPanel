@@ -43,6 +43,10 @@ public class StatusFragment extends Fragment {
     private Button btnTiltUp, btnTiltDown;
     private Button btnStopAll;
 
+    // --- Precision Angle Buttons ---
+    private Button btnMinus1, btnMinus01, btnPlus01, btnPlus1, btnGoAngle;
+    private android.widget.EditText etTargetAngle;
+
     // --- Networking ---
     private SolarApiService apiService;
     private Vibrator vibrator;
@@ -96,6 +100,29 @@ public class StatusFragment extends Fragment {
         btnStopAll.setOnLongClickListener(v -> {
             showEmergencyStopDialog();
             return true;
+        });
+
+        // 7. Precision Angle Controls
+        btnMinus1 = view.findViewById(R.id.btn_minus_1);
+        btnMinus01 = view.findViewById(R.id.btn_minus_01);
+        btnPlus01 = view.findViewById(R.id.btn_plus_01);
+        btnPlus1 = view.findViewById(R.id.btn_plus_1);
+        btnGoAngle = view.findViewById(R.id.btn_go_angle);
+        etTargetAngle = view.findViewById(R.id.et_target_angle);
+
+        btnMinus1.setOnClickListener(v -> { vibrateDevice(30); sendAngleNudge(-1.0f); });
+        btnMinus01.setOnClickListener(v -> { vibrateDevice(30); sendAngleNudge(-0.1f); });
+        btnPlus01.setOnClickListener(v -> { vibrateDevice(30); sendAngleNudge(0.1f); });
+        btnPlus1.setOnClickListener(v -> { vibrateDevice(30); sendAngleNudge(1.0f); });
+
+        btnGoAngle.setOnClickListener(v -> {
+            String text = etTargetAngle.getText().toString().trim();
+            if (!text.isEmpty()) {
+                vibrateDevice(50);
+                sendAngleTarget(Float.parseFloat(text));
+            } else {
+                Toast.makeText(getContext(), "Enter a target angle", Toast.LENGTH_SHORT).show();
+            }
         });
 
         // 7. Populate Data
@@ -275,7 +302,7 @@ public class StatusFragment extends Fragment {
 
                 SolarStatus status = response.body();
                 if (tvTiltAngle != null) {
-                    tvTiltAngle.setText(String.format("Tilt Angle: %.1f°", status.tiltAngle));
+                    tvTiltAngle.setText(String.format("Tilt Angle: %.2f°", status.tiltAngle));
                 }
             }
 
@@ -284,6 +311,64 @@ public class StatusFragment extends Fragment {
                 Log.e("StatusFragment", "Angle fetch failed", t);
             }
         });
+    }
+
+    private void sendAngleNudge(float delta) {
+        if (apiService == null) return;
+        updateMotorStatus(String.format("Nudging %+.1f°...", delta));
+
+        apiService.nudgeAngle(delta).enqueue(new Callback<SyncResponse>() {
+            @Override
+            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
+                if (getContext() == null) return;
+                updateMotorStatus("Positioning...");
+                // Fetch updated angle after a short delay
+                angleHandler.postDelayed(() -> fetchTiltAngle(), 500);
+                angleHandler.postDelayed(() -> {
+                    fetchTiltAngle();
+                    updateMotorStatus("Ready");
+                }, 2000);
+            }
+
+            @Override
+            public void onFailure(Call<SyncResponse> call, Throwable t) {
+                if (getContext() == null) return;
+                updateMotorStatus("Command failed");
+                Log.e("StatusFragment", "Nudge failed", t);
+            }
+        });
+    }
+
+    private void sendAngleTarget(float target) {
+        if (apiService == null) return;
+        updateMotorStatus(String.format("Going to %.1f°...", target));
+
+        apiService.setAngle(target).enqueue(new Callback<SyncResponse>() {
+            @Override
+            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
+                if (getContext() == null) return;
+                updateMotorStatus("Positioning...");
+                angleHandler.postDelayed(() -> {
+                    fetchTiltAngle();
+                    updateMotorStatus("Ready");
+                }, 3000);
+            }
+
+            @Override
+            public void onFailure(Call<SyncResponse> call, Throwable t) {
+                if (getContext() == null) return;
+                updateMotorStatus("Command failed");
+                Log.e("StatusFragment", "SetAngle failed", t);
+            }
+        });
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Restart angle polling
+        angleHandler.removeCallbacks(anglePoller); // Prevent duplicates
+        angleHandler.post(anglePoller);
     }
 
     @Override

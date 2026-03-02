@@ -57,6 +57,77 @@
             android:background="@drawable/rounded_background"
             android:gravity="center"/>
 
+        <!-- Precision Angle Controls -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Precision Tilt Control"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/btn_minus_1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="−1.0°"
+                android:layout_marginEnd="4dp"/>
+
+            <Button
+                android:id="@+id/btn_minus_01"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="−0.1°"
+                android:layout_marginEnd="4dp"/>
+
+            <Button
+                android:id="@+id/btn_plus_01"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="+0.1°"
+                android:layout_marginEnd="4dp"/>
+
+            <Button
+                android:id="@+id/btn_plus_1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="+1.0°"/>
+        </LinearLayout>
+
+        <!-- Go To Angle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/et_target_angle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Target angle (°)"
+                android:inputType="numberDecimal|numberSigned"
+                android:layout_marginEnd="8dp"/>
+
+            <Button
+                android:id="@+id/btn_go_angle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GO"/>
+        </LinearLayout>
+
         <!-- Motor Status Indicator -->
         <TextView
             android:id="@+id/tv_motor_status"

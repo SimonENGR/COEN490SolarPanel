@@ -23,4 +23,10 @@ public interface SolarApiService {
 
     @GET("/motor")
     Call<SyncResponse> controlMotor(@Query("type") String motorType, @Query("dir") int direction);
+
+    @GET("/angle")
+    Call<SyncResponse> nudgeAngle(@Query("delta") float delta);
+
+    @GET("/angle")
+    Call<SyncResponse> setAngle(@Query("target") float target);
 }

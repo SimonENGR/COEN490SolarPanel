@@ -141,21 +141,47 @@ public class MainActivity extends AppCompatActivity implements ProvisioningFragm
     }
 
     /**
-     * DUAL-MODE DISCOVERY
+     * SMART DISCOVERY (3 strategies)
      *
-     * Strategy 1: Try BLE first (5 seconds)
-     * Strategy 2: If BLE fails, scan local network via HTTP (10 seconds)
-     * Strategy 3: If both fail, show provisioning
+     * Strategy 0: Try saved IP first (instant - works great for hotspot)
+     * Strategy 1: Try BLE (5 seconds)
+     * Strategy 2: Scan local network via HTTP (10 seconds)
+     * Strategy 3: If all fail, show provisioning
      */
     private void startSmartDiscovery() {
         runOnUiThread(() -> {
-            tvSplashStatus.setText("Looking for ESP32...\n(BLE Mode)");
+            tvSplashStatus.setText("Looking for ESP32...");
             progressBar.setVisibility(View.VISIBLE);
             splashScreen.setVisibility(View.VISIBLE);
         });
 
-        // Step 1: Try BLE for 5 seconds
-        tryBLEDiscovery();
+        // Step 0: Try saved IP first (fastest path)
+        SharedPreferences prefs = getSharedPreferences("SolarPrefs", Context.MODE_PRIVATE);
+        String savedIp = prefs.getString("esp_ip", null);
+
+        if (savedIp != null && !savedIp.isEmpty()) {
+            runOnUiThread(() -> tvSplashStatus.setText("Trying saved IP: " + savedIp + "..."));
+            Log.d(TAG, "Trying saved IP: " + savedIp);
+
+            executorService.execute(() -> {
+                if (checkESP32AtIP(savedIp)) {
+                    foundDevice = true;
+                    runOnUiThread(() -> {
+                        tvSplashStatus.setText("✓ ESP32 Found!\nIP: " + savedIp);
+                        handler.postDelayed(this::loadMainApp, 1000);
+                    });
+                } else {
+                    Log.d(TAG, "Saved IP unreachable, falling back to BLE scan");
+                    runOnUiThread(() -> {
+                        tvSplashStatus.setText("Saved IP unreachable\nTrying BLE...");
+                    });
+                    handler.post(this::tryBLEDiscovery);
+                }
+            });
+        } else {
+            // No saved IP, go straight to BLE
+            tryBLEDiscovery();
+        }
     }
 
     private void tryBLEDiscovery() {
