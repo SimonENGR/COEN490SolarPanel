@@ -48,6 +48,7 @@ public class HomeFragment extends Fragment {
     private TextView tvConnectionStatus;
     private ImageView ivConnectionIndicator;
     private SwitchMaterial toggleMode;
+    private Button btnAutoMode;
     private Button btnSync;
     private SwipeRefreshLayout swipeRefreshLayout;
 
@@ -96,6 +97,7 @@ public class HomeFragment extends Fragment {
         tvConnectionStatus = view.findViewById(R.id.tv_connection_status);
         ivConnectionIndicator = view.findViewById(R.id.iv_connection_indicator);
         toggleMode = view.findViewById(R.id.toggle_mode);
+        btnAutoMode = view.findViewById(R.id.btn_auto_mode);
         btnSync = view.findViewById(R.id.btn_sync);
         swipeRefreshLayout = view.findViewById(R.id.swipe_refresh);
 
@@ -125,6 +127,12 @@ public class HomeFragment extends Fragment {
             if (buttonView.isPressed()) {
                 toggleManualMode(isChecked);
             }
+        });
+
+        // --- Auto Mode Button ---
+        btnAutoMode.setOnClickListener(v -> {
+            toggleManualMode(false);
+            toggleMode.setChecked(false);
         });
 
         // --- Load last sync time ---

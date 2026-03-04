@@ -94,9 +94,15 @@ public class MainActivity extends AppCompatActivity implements ProvisioningFragm
         // Setup navigation (but keep hidden initially)
         setupBottomNavigation();
 
+        // Check for Prototype Mode
+        boolean isPrototype = getIntent().getBooleanExtra("isPrototype", false);
+
         // Check Permissions
-        if (hasPermissions()) {
+        if (hasPermissions() && !isPrototype) {
             startSmartDiscovery();
+        } else if (isPrototype) {
+            // Bypass discovery and load immediately
+            loadMainApp();
         } else {
             requestBluetoothPermissions();
         }

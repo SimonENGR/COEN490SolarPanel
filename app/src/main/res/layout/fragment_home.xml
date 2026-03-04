@@ -3,7 +3,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/swipe_refresh"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="?attr/android:windowBackground">
 
     <ScrollView
         android:layout_width="match_parent"
@@ -83,13 +84,29 @@
                 android:textSize="18sp"
                 android:layout_marginTop="8dp"/>
 
-            <!-- Mode Toggle -->
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/toggle_mode"
+            <!-- Mode Toggle Area -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Manual Override"
-                android:layout_marginTop="24dp"/>
+                android:orientation="horizontal"
+                android:layout_marginTop="24dp"
+                android:gravity="center_vertical">
+                
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/toggle_mode"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="Manual Override"/>
+
+                <Button
+                    android:id="@+id/btn_auto_mode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Engage Auto"
+                    android:layout_marginStart="8dp"
+                    style="@style/Widget.Material3.Button.TonalButton"/>
+            </LinearLayout>
 
             <!-- Sync Button -->
             <Button
