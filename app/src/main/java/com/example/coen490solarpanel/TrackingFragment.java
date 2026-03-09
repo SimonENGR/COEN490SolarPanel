@@ -27,19 +27,13 @@ import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
-public class StatusFragment extends Fragment {
+public class TrackingFragment extends Fragment {
 
     // --- UI Elements ---
-    private TextView tvBatteryStatus;
-    private TextView tvBatterySensor;
-    private TextView tvPanelSensor;
-    private TextView tvCurrentEnergy;
-    private TextView tvMeanEnergy;
     private TextView tvMotorStatus;
     private TextView tvTiltAngle;
 
     // --- Motor Buttons ---
-    private Button btnCleanUp, btnCleanDown;
     private Button btnTiltUp, btnTiltDown;
     private Button btnStopAll;
 
@@ -62,36 +56,27 @@ public class StatusFragment extends Fragment {
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_status, container, false);
+        View view = inflater.inflate(R.layout.fragment_tracking, container, false);
 
-        tvBatteryStatus = view.findViewById(R.id.tv_battery_status);
-        tvBatterySensor = view.findViewById(R.id.tv_battery_sensor);
-        tvPanelSensor = view.findViewById(R.id.tv_panel_sensor);
-        tvCurrentEnergy = view.findViewById(R.id.tv_current_energy);
-        tvMeanEnergy = view.findViewById(R.id.tv_mean_energy);
         tvMotorStatus = view.findViewById(R.id.tv_motor_status);
         tvTiltAngle = view.findViewById(R.id.tv_tilt_angle);
 
-        // 2. Initialize Motor Buttons
-        btnCleanUp = view.findViewById(R.id.btn_clean_up);
-        btnCleanDown = view.findViewById(R.id.btn_clean_down);
+        // Initialize Motor Buttons
         btnTiltUp = view.findViewById(R.id.btn_tilt_up);
         btnTiltDown = view.findViewById(R.id.btn_tilt_down);
         btnStopAll = view.findViewById(R.id.btn_stop_all);
 
-        // 3. Get Vibrator Service
+        // Get Vibrator Service
         vibrator = (Vibrator) requireContext().getSystemService(Context.VIBRATOR_SERVICE);
 
-        // 4. Setup Network Connection
+        // Setup Network Connection
         setupApiService();
 
-        // 5. Set up HOLD-TO-OPERATE buttons with haptic feedback
-        setupHoldToOperateButton(btnCleanUp, "clean", 1, "Cleaning ↑");
-        setupHoldToOperateButton(btnCleanDown, "clean", -1, "Cleaning ↓");
+        // Set up HOLD-TO-OPERATE buttons with haptic feedback
         setupHoldToOperateButton(btnTiltUp, "tilt", 1, "Tilting ↑");
         setupHoldToOperateButton(btnTiltDown, "tilt", -1, "Tilting ↓");
 
-        // 6. Emergency Stop with confirmation
+        // Emergency Stop with confirmation
         btnStopAll.setOnClickListener(v -> {
             vibrateDevice(100);
             sendMotorCommand("all", 0);
@@ -102,7 +87,7 @@ public class StatusFragment extends Fragment {
             return true;
         });
 
-        // 7. Precision Angle Controls
+        // Precision Angle Controls
         btnMinus1 = view.findViewById(R.id.btn_minus_1);
         btnMinus01 = view.findViewById(R.id.btn_minus_01);
         btnPlus01 = view.findViewById(R.id.btn_plus_01);
@@ -125,11 +110,9 @@ public class StatusFragment extends Fragment {
             }
         });
 
-        // 7. Populate Data
-        updateStatusData();
         updateMotorStatus("Ready");
 
-        // 8. Setup angle poller (always polls, faster during motor use)
+        // Setup angle poller (always polls, faster during motor use)
         anglePoller = new Runnable() {
             @Override
             public void run() {
@@ -159,7 +142,7 @@ public class StatusFragment extends Fragment {
                     .build();
             apiService = retrofit.create(SolarApiService.class);
         } catch (Exception e) {
-            Log.e("StatusFragment", "Retrofit Init Error", e);
+            Log.e("TrackingFragment", "Retrofit Init Error", e);
         }
     }
 
@@ -274,24 +257,6 @@ public class StatusFragment extends Fragment {
         }
     }
 
-    private void updateStatusData() {
-        // Placeholder values - these would come from actual ESP32 data
-        double currentCharge = 7.8; // kWh
-        double totalCapacity = 12.0; // kWh
-        double batteryPercentage = (currentCharge / totalCapacity) * 100;
-
-        tvBatteryStatus.setText(String.format(
-                "Battery: %.1f / %.1f kWh (%.0f%%)",
-                currentCharge, totalCapacity, batteryPercentage
-        ));
-
-        // Add visual indicators
-        tvBatterySensor.setText("Battery Sensor: ✓ Operational");
-        tvPanelSensor.setText("Panel Sensor: ✓ Operational");
-        tvCurrentEnergy.setText("Current Harvest: 2.4 kWh/hr");
-        tvMeanEnergy.setText("7-Day Average: 1.8 kWh/hr");
-    }
-
     private void fetchTiltAngle() {
         if (apiService == null) return;
 
@@ -308,7 +273,7 @@ public class StatusFragment extends Fragment {
 
             @Override
             public void onFailure(Call<SolarStatus> call, Throwable t) {
-                Log.e("StatusFragment", "Angle fetch failed", t);
+                Log.e("TrackingFragment", "Angle fetch failed", t);
             }
         });
     }
@@ -334,7 +299,7 @@ public class StatusFragment extends Fragment {
             public void onFailure(Call<SyncResponse> call, Throwable t) {
                 if (getContext() == null) return;
                 updateMotorStatus("Command failed");
-                Log.e("StatusFragment", "Nudge failed", t);
+                Log.e("TrackingFragment", "Nudge failed", t);
             }
         });
     }
@@ -358,7 +323,7 @@ public class StatusFragment extends Fragment {
             public void onFailure(Call<SyncResponse> call, Throwable t) {
                 if (getContext() == null) return;
                 updateMotorStatus("Command failed");
-                Log.e("StatusFragment", "SetAngle failed", t);
+                Log.e("TrackingFragment", "SetAngle failed", t);
             }
         });
     }

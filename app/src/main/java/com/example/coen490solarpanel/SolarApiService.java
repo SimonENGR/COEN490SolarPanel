@@ -29,4 +29,7 @@ public interface SolarApiService {
 
     @GET("/angle")
     Call<SyncResponse> setAngle(@Query("target") float target);
+
+    @GET("/wiper")
+    Call<SyncResponse> runCleaningCycle(@Query("clean") int clean);
 }

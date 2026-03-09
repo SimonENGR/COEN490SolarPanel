@@ -10,40 +10,17 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Status Display -->
+        <!-- Motor Status Indicator -->
         <TextView
-            android:id="@+id/tv_battery_status"
+            android:id="@+id/tv_motor_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Battery: -- / -- kWh (--%)"/>
-
-        <TextView
-            android:id="@+id/tv_battery_sensor"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Battery Sensor: --"
-            android:layout_marginTop="8dp"/>
-
-        <TextView
-            android:id="@+id/tv_panel_sensor"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Panel Sensor: --"
-            android:layout_marginTop="8dp"/>
-
-        <TextView
-            android:id="@+id/tv_current_energy"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Current Harvest: --"
-            android:layout_marginTop="8dp"/>
-
-        <TextView
-            android:id="@+id/tv_mean_energy"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="7-Day Average: --"
-            android:layout_marginTop="8dp"/>
+            android:text="Motor Status: Ready"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:padding="12dp"
+            android:background="@drawable/rounded_background"
+            android:gravity="center"/>
 
         <!-- Tilt Angle Display -->
         <TextView
@@ -53,7 +30,7 @@
             android:text="Tilt Angle: 0.0°"
             android:textSize="24sp"
             android:textStyle="bold"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="16dp"
             android:padding="16dp"
             android:background="@drawable/rounded_background"
             android:gravity="center"/>
@@ -65,7 +42,7 @@
             android:text="Precision Tilt Control"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:layout_marginTop="16dp"/>
+            android:layout_marginTop="24dp"/>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -129,62 +106,11 @@
                 android:text="GO"/>
         </LinearLayout>
 
-        <!-- Motor Status Indicator -->
-        <TextView
-            android:id="@+id/tv_motor_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Motor Status: Ready"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginTop="12dp"
-            android:padding="12dp"
-            android:background="@drawable/rounded_background"
-            android:gravity="center"/>
-
-        <!-- Cleaning Motor Controls -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cleaning Brush"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginTop="24dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="⚠ Hold button to operate"
-            android:textSize="12sp"
-            android:layout_marginTop="4dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
-
-            <Button
-                android:id="@+id/btn_clean_up"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="↑ Forward"
-                android:layout_marginEnd="8dp"/>
-
-            <Button
-                android:id="@+id/btn_clean_down"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="↓ Reverse"/>
-        </LinearLayout>
-
         <!-- Tilt Motor Controls -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Panel Tilt"
+            android:text="Manual Panel Tilt"
             android:textSize="16sp"
             android:textStyle="bold"
             android:layout_marginTop="24dp"/>
@@ -223,10 +149,10 @@
             android:id="@+id/btn_stop_all"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="⛔ STOP ALL MOTORS"
+            android:text="⛔ EMERGENCY STOP"
             android:backgroundTint="@android:color/holo_red_dark"
             android:textColor="@android:color/white"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="32dp"
             android:textStyle="bold"/>
 
         <TextView
