@@ -1,5 +1,7 @@
 package com.example.coen490solarpanel;
 
+import com.example.coen490solarpanel.LocationPayload;
+
 import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.GET;
@@ -7,53 +9,38 @@ import retrofit2.http.POST;
 import retrofit2.http.Query;
 
 public interface SolarApiService {
-
-    // ----------------------------------------------------------------
-    // Existing endpoints — UNCHANGED
-    // ----------------------------------------------------------------
-
-    /** Full system status (now also includes wiper_percent, wiper_calibrated, wiper_moving) */
+    // Corresponds to the ESP32's "handleStatus"
     @GET("/status")
     Call<SolarStatus> getStatus();
 
-    /** Toggle auto / manual mode */
+    // Set tracking mode: 0=AUTO, 1=SEMI_AUTO, 2=MANUAL
+    @GET("/mode")
+    Call<SyncResponse> setMode(@Query("mode") int mode);
+
+    // Legacy: toggle manual mode (0=auto, 1=manual)
     @GET("/mode")
     Call<SyncResponse> toggleMode(@Query("manual") int manualState);
 
-    /** Send GPS location to ESP32 */
+    // Corresponds to "handleGPS"
     @POST("/update")
     Call<SyncResponse> updateLocation(@Body LocationPayload payload);
 
-    /** Raw IBT-2 motor control (used by hold-to-operate buttons) */
     @GET("/motor")
-    Call<SyncResponse> controlMotor(@Query("type") String motorType,
-                                    @Query("dir")  int    direction);
+    Call<SyncResponse> controlMotor(@Query("type") String motorType, @Query("dir") int direction);
 
-    /** Nudge tilt angle by a relative delta (degrees) */
     @GET("/angle")
     Call<SyncResponse> nudgeAngle(@Query("delta") float delta);
 
-    /** Move tilt to an absolute angle (degrees) */
     @GET("/angle")
     Call<SyncResponse> setAngle(@Query("target") float target);
 
-    // ----------------------------------------------------------------
-    // Wiper / Cleaning motor endpoints (new)
-    // ----------------------------------------------------------------
-
-    /** Move wiper to an absolute position (0–100%) */
     @GET("/wiper")
-    Call<SyncResponse> setWiperTarget(@Query("target") float targetPercent);
+    Call<SyncResponse> runCleaningCycle(@Query("clean") int clean);
 
-    /** Nudge wiper by a relative percentage (positive = up, negative = down) */
-    @GET("/wiper")
-    Call<SyncResponse> nudgeWiper(@Query("delta") float deltaPercent);
+    // Weather control endpoints
+    @GET("/weather")
+    Call<SyncResponse> setWeatherCondition(@Query("condition") String condition);
 
-    /** Trigger a full autonomous clean cycle (up → down → up to rest) */
-    @GET("/wiper")
-    Call<SyncResponse> triggerFullClean(@Query("clean") int start);
-
-    /** Query current wiper status without commanding anything */
-    @GET("/wiper")
-    Call<SyncResponse> getWiperStatus();
+    @GET("/weather")
+    Call<SyncResponse> confirmWeather(@Query("confirm") int confirm);
 }

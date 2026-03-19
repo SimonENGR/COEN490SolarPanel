@@ -516,12 +516,12 @@ public class MainActivity extends AppCompatActivity implements ProvisioningFragm
             if (itemId == R.id.navigation_home) {
                 selectedFragment = new HomeFragment();
                 title = "Home";
-            } else if (itemId == R.id.navigation_efficiency) {
-                selectedFragment = new EfficiencyFragment();
-                title = "Efficiency";
-            } else if (itemId == R.id.navigation_status) {
-                selectedFragment = new StatusFragment();
-                title = "Status";
+            } else if (itemId == R.id.navigation_tracking) {
+                selectedFragment = new TrackingFragment();
+                title = "Tracking";
+            } else if (itemId == R.id.navigation_cleaning) {
+                selectedFragment = new CleaningFragment();
+                title = "Cleaning";
             } else if (itemId == R.id.navigation_weather) {
                 selectedFragment = new WeatherFragment();
                 title = "Weather";

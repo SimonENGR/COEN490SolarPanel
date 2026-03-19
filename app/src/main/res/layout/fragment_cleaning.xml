@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="?attr/android:windowBackground">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Motor Status Indicator -->
+        <TextView
+            android:id="@+id/tv_motor_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Motor Status: Ready"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:padding="12dp"
+            android:background="@drawable/rounded_background"
+            android:gravity="center"/>
+
+        <!-- Cleaning Motor Controls -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cleaning Brush Controls"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚠ Hold button to operate"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"/>
+
+        <Button
+            android:id="@+id/btn_run_clean_cycle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Run Auto Clean Cycle"
+            android:layout_marginTop="8dp"
+            style="@style/Widget.Material3.Button.TonalButton"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/btn_clean_up"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="↑ Forward"
+                android:layout_marginEnd="8dp"/>
+
+            <Button
+                android:id="@+id/btn_clean_down"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="↓ Reverse"/>
+        </LinearLayout>
+
+        <!-- Emergency Stop -->
+        <Button
+            android:id="@+id/btn_stop_all"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⛔ EMERGENCY STOP"
+            android:backgroundTint="@android:color/holo_red_dark"
+            android:textColor="@android:color/white"
+            android:layout_marginTop="32dp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Long-press for emergency stop dialog"
+            android:textSize="10sp"
+            android:gravity="center"
+            android:layout_marginTop="4dp"/>
+
+    </LinearLayout>
+</ScrollView>
