@@ -13,7 +13,11 @@ public interface SolarApiService {
     @GET("/status")
     Call<SolarStatus> getStatus();
 
-    // Corresponds to "handleModeControl"
+    // Set tracking mode: 0=AUTO, 1=SEMI_AUTO, 2=MANUAL
+    @GET("/mode")
+    Call<SyncResponse> setMode(@Query("mode") int mode);
+
+    // Legacy: toggle manual mode (0=auto, 1=manual)
     @GET("/mode")
     Call<SyncResponse> toggleMode(@Query("manual") int manualState);
 
@@ -32,4 +36,11 @@ public interface SolarApiService {
 
     @GET("/wiper")
     Call<SyncResponse> runCleaningCycle(@Query("clean") int clean);
+
+    // Weather control endpoints
+    @GET("/weather")
+    Call<SyncResponse> setWeatherCondition(@Query("condition") String condition);
+
+    @GET("/weather")
+    Call<SyncResponse> confirmWeather(@Query("confirm") int confirm);
 }

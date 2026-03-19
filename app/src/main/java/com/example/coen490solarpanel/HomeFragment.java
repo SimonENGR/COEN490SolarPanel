@@ -29,7 +29,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.snackbar.Snackbar;
-import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -47,8 +46,8 @@ public class HomeFragment extends Fragment {
     private TextView tvAzimuth;
     private TextView tvConnectionStatus;
     private ImageView ivConnectionIndicator;
-    private SwitchMaterial toggleMode;
-    private Button btnAutoMode;
+    private TextView tvModeDisplay;
+    private TextView tvWeatherDisplay;
     private Button btnSync;
     private SwipeRefreshLayout swipeRefreshLayout;
 
@@ -96,8 +95,8 @@ public class HomeFragment extends Fragment {
         tvAzimuth = view.findViewById(R.id.tv_azimuth);
         tvConnectionStatus = view.findViewById(R.id.tv_connection_status);
         ivConnectionIndicator = view.findViewById(R.id.iv_connection_indicator);
-        toggleMode = view.findViewById(R.id.toggle_mode);
-        btnAutoMode = view.findViewById(R.id.btn_auto_mode);
+        tvModeDisplay = view.findViewById(R.id.tv_mode_display);
+        tvWeatherDisplay = view.findViewById(R.id.tv_weather_display);
         btnSync = view.findViewById(R.id.btn_sync);
         swipeRefreshLayout = view.findViewById(R.id.swipe_refresh);
 
@@ -120,19 +119,6 @@ public class HomeFragment extends Fragment {
                 return;
             }
             handleSyncButtonClick();
-        });
-
-        // --- Toggle Mode Switch ---
-        toggleMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (buttonView.isPressed()) {
-                toggleManualMode(isChecked);
-            }
-        });
-
-        // --- Auto Mode Button ---
-        btnAutoMode.setOnClickListener(v -> {
-            toggleManualMode(false);
-            toggleMode.setChecked(false);
         });
 
         // --- Load last sync time ---
@@ -326,14 +312,29 @@ public class HomeFragment extends Fragment {
                     tvHorizontalTilt.setText(String.format("Elevation: %.1f°", s.elevation));
                     tvAzimuth.setText(String.format("Azimuth: %.1f°", s.azimuth));
 
-                    if (s.override) {
-                        tvMonitoringStatus.setText("⚠ MANUAL MODE");
-                        tvMonitoringStatus.setTextColor(getResources().getColor(android.R.color.holo_orange_dark));
-                        toggleMode.setChecked(true);
-                    } else {
-                        tvMonitoringStatus.setText("✓ AUTO TRACKING");
-                        tvMonitoringStatus.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
-                        toggleMode.setChecked(false);
+                    // Update mode display
+                    String[] modeNames = {"✓ AUTOMATIC", "↔ SEMI-AUTO", "⚠ MANUAL"};
+                    int[] modeColors = {
+                            android.R.color.holo_green_dark,
+                            android.R.color.holo_blue_dark,
+                            android.R.color.holo_orange_dark
+                    };
+                    int mode = Math.min(Math.max(s.mode, 0), 2);
+                    tvMonitoringStatus.setText(modeNames[mode]);
+                    tvMonitoringStatus.setTextColor(getResources().getColor(modeColors[mode]));
+
+                    if (tvModeDisplay != null) {
+                        String[] displayNames = {"Automatic", "Semi-Auto", "Manual"};
+                        tvModeDisplay.setText("Mode: " + displayNames[mode]);
+                    }
+
+                    // Update weather display
+                    if (tvWeatherDisplay != null && s.weatherCondition != null) {
+                        String weatherText = "Weather: " + s.weatherCondition;
+                        if (s.weatherOverride >= 0) {
+                            weatherText += " → " + s.weatherOverride + "°";
+                        }
+                        tvWeatherDisplay.setText(weatherText);
                     }
                 }
             }
@@ -362,29 +363,7 @@ public class HomeFragment extends Fragment {
         });
     }
 
-    private void toggleManualMode(boolean isManual) {
-        if (apiService == null) return;
 
-        apiService.toggleMode(isManual ? 1 : 0).enqueue(new Callback<SyncResponse>() {
-            @Override
-            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
-                if (getContext() == null) return;
-
-                String mode = isManual ? "Manual Mode ON" : "Auto Mode ON";
-                Snackbar.make(requireView(), mode, Snackbar.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onFailure(Call<SyncResponse> call, Throwable t) {
-                if (getContext() == null) return;
-
-                Snackbar.make(requireView(),
-                        "Failed to switch mode",
-                        Snackbar.LENGTH_SHORT).show();
-                toggleMode.setChecked(!isManual); // Revert switch
-            }
-        });
-    }
 
     private void updateHomeData() {
         tvUptime.setText("System Uptime: Connecting...");

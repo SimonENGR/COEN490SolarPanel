@@ -84,29 +84,28 @@
                 android:textSize="18sp"
                 android:layout_marginTop="8dp"/>
 
-            <!-- Mode Toggle Area -->
-            <LinearLayout
+            <!-- Mode Display (read-only, controlled from Tracking tab) -->
+            <TextView
+                android:id="@+id/tv_mode_display"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
+                android:text="Mode: Connecting..."
+                android:textSize="18sp"
+                android:textStyle="bold"
                 android:layout_marginTop="24dp"
-                android:gravity="center_vertical">
-                
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/toggle_mode"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="Manual Override"/>
+                android:padding="12dp"
+                android:background="@drawable/rounded_background"
+                android:gravity="center"/>
 
-                <Button
-                    android:id="@+id/btn_auto_mode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Engage Auto"
-                    android:layout_marginStart="8dp"
-                    style="@style/Widget.Material3.Button.TonalButton"/>
-            </LinearLayout>
+            <!-- Weather Status -->
+            <TextView
+                android:id="@+id/tv_weather_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Weather: --"
+                android:textSize="14sp"
+                android:layout_marginTop="8dp"
+                android:gravity="center"/>
 
             <!-- Sync Button -->
             <Button

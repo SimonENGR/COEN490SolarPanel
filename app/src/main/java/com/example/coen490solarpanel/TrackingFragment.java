@@ -1,7 +1,12 @@
 package com.example.coen490solarpanel;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -11,12 +16,17 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.snackbar.Snackbar;
@@ -29,17 +39,36 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class TrackingFragment extends Fragment {
 
+    private static final String TAG = "TrackingFragment";
+    private static final String CHANNEL_ID = "weather_alerts";
+
     // --- UI Elements ---
     private TextView tvMotorStatus;
     private TextView tvTiltAngle;
+    private TextView tvWeatherStatus;
+
+    // --- Mode Selector ---
+    private RadioGroup rgModeSelector;
+    private RadioButton rbAutomatic, rbSemiAuto, rbManual;
+
+    // --- Manual Controls Container ---
+    private LinearLayout layoutManualControls;
+    private LinearLayout layoutWeatherPresets;
+
+    // --- Semi-Auto Confirmation ---
+    private LinearLayout layoutSemiAutoConfirm;
+    private TextView tvConfirmMessage;
+    private Button btnConfirmApprove, btnConfirmReject;
 
     // --- Motor Buttons ---
     private Button btnTiltUp, btnTiltDown;
     private Button btnStopAll;
 
-    // --- Precision Angle Buttons ---
-    private Button btnMinus1, btnMinus01, btnPlus01, btnPlus1, btnGoAngle;
-    private android.widget.EditText etTargetAngle;
+    // --- Arc Slider ---
+    private ArcSliderView arcSlider;
+
+    // --- Weather Preset Buttons ---
+    private Button btnWeatherOvercast, btnWeatherRain, btnWeatherSnow, btnWeatherClear;
 
     // --- Networking ---
     private SolarApiService apiService;
@@ -52,27 +81,120 @@ public class TrackingFragment extends Fragment {
     // --- Angle Polling ---
     private android.os.Handler angleHandler = new android.os.Handler();
     private Runnable anglePoller;
+    private int currentMode = 0;
+    private boolean notificationSent = false;
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_tracking, container, false);
 
+        // Initialize Status Views
         tvMotorStatus = view.findViewById(R.id.tv_motor_status);
         tvTiltAngle = view.findViewById(R.id.tv_tilt_angle);
+        tvWeatherStatus = view.findViewById(R.id.tv_weather_status);
+
+        // Initialize Mode Selector
+        rgModeSelector = view.findViewById(R.id.rg_mode_selector);
+        rbAutomatic = view.findViewById(R.id.rb_automatic);
+        rbSemiAuto = view.findViewById(R.id.rb_semi_auto);
+        rbManual = view.findViewById(R.id.rb_manual);
+
+        // Initialize Collapsible Sections
+        layoutManualControls = view.findViewById(R.id.layout_manual_controls);
+        layoutWeatherPresets = view.findViewById(R.id.layout_weather_presets);
+        layoutSemiAutoConfirm = view.findViewById(R.id.layout_semi_auto_confirm);
+        tvConfirmMessage = view.findViewById(R.id.tv_confirm_message);
+        btnConfirmApprove = view.findViewById(R.id.btn_confirm_approve);
+        btnConfirmReject = view.findViewById(R.id.btn_confirm_reject);
 
         // Initialize Motor Buttons
         btnTiltUp = view.findViewById(R.id.btn_tilt_up);
         btnTiltDown = view.findViewById(R.id.btn_tilt_down);
         btnStopAll = view.findViewById(R.id.btn_stop_all);
 
+        // Initialize Arc Slider
+        arcSlider = view.findViewById(R.id.arc_slider);
+
+        // Weather Preset Buttons
+        btnWeatherOvercast = view.findViewById(R.id.btn_weather_overcast);
+        btnWeatherRain = view.findViewById(R.id.btn_weather_rain);
+        btnWeatherSnow = view.findViewById(R.id.btn_weather_snow);
+        btnWeatherClear = view.findViewById(R.id.btn_weather_clear);
+
         // Get Vibrator Service
         vibrator = (Vibrator) requireContext().getSystemService(Context.VIBRATOR_SERVICE);
+
+        // Create notification channel
+        createNotificationChannel();
 
         // Setup Network Connection
         setupApiService();
 
-        // Set up HOLD-TO-OPERATE buttons with haptic feedback
+        // --- MODE SELECTOR ---
+        rgModeSelector.setOnCheckedChangeListener((group, checkedId) -> {
+            int mode;
+            if (checkedId == R.id.rb_automatic) {
+                mode = 0;
+            } else if (checkedId == R.id.rb_semi_auto) {
+                mode = 1;
+            } else {
+                mode = 2;
+            }
+            vibrateDevice(30);
+            sendModeChange(mode);
+            updateUiForMode(mode);
+        });
+
+        // --- SEMI-AUTO CONFIRMATION ---
+        btnConfirmApprove.setOnClickListener(v -> {
+            vibrateDevice(50);
+            sendWeatherConfirmation(1);
+        });
+
+        btnConfirmReject.setOnClickListener(v -> {
+            vibrateDevice(50);
+            sendWeatherConfirmation(0);
+        });
+
+        // --- WEATHER PRESET BUTTONS ---
+        btnWeatherOvercast.setOnClickListener(v -> {
+            vibrateDevice(30);
+            sendWeatherOverride("overcast");
+        });
+        btnWeatherRain.setOnClickListener(v -> {
+            vibrateDevice(30);
+            sendWeatherOverride("rain");
+        });
+        btnWeatherSnow.setOnClickListener(v -> {
+            vibrateDevice(30);
+            sendWeatherOverride("snow");
+        });
+        btnWeatherClear.setOnClickListener(v -> {
+            vibrateDevice(30);
+            sendWeatherOverride("clear");
+        });
+
+        // --- ARC SLIDER ---
+        arcSlider.setOnAngleChangedListener(new ArcSliderView.OnAngleChangedListener() {
+            @Override
+            public void onAngleChanged(float angle) {
+                // Live preview: update angle display while dragging
+                if (tvTiltAngle != null) {
+                    tvTiltAngle.setText(String.format("Target: %.1f°", angle));
+                }
+            }
+
+            @Override
+            public void onAngleFinalized(float angle) {
+                // User lifted finger — auto-send the target angle immediately
+                vibrateDevice(50);
+                sendAngleTarget(angle);
+                updateMotorStatus(String.format("Going to %.1f°...", angle));
+            }
+        });
+
+        // --- HOLD-TO-OPERATE TILT BUTTONS ---
         setupHoldToOperateButton(btnTiltUp, "tilt", 1, "Tilting ↑");
         setupHoldToOperateButton(btnTiltDown, "tilt", -1, "Tilting ↓");
 
@@ -87,46 +209,35 @@ public class TrackingFragment extends Fragment {
             return true;
         });
 
-        // Precision Angle Controls
-        btnMinus1 = view.findViewById(R.id.btn_minus_1);
-        btnMinus01 = view.findViewById(R.id.btn_minus_01);
-        btnPlus01 = view.findViewById(R.id.btn_plus_01);
-        btnPlus1 = view.findViewById(R.id.btn_plus_1);
-        btnGoAngle = view.findViewById(R.id.btn_go_angle);
-        etTargetAngle = view.findViewById(R.id.et_target_angle);
-
-        btnMinus1.setOnClickListener(v -> { vibrateDevice(30); sendAngleNudge(-1.0f); });
-        btnMinus01.setOnClickListener(v -> { vibrateDevice(30); sendAngleNudge(-0.1f); });
-        btnPlus01.setOnClickListener(v -> { vibrateDevice(30); sendAngleNudge(0.1f); });
-        btnPlus1.setOnClickListener(v -> { vibrateDevice(30); sendAngleNudge(1.0f); });
-
-        btnGoAngle.setOnClickListener(v -> {
-            String text = etTargetAngle.getText().toString().trim();
-            if (!text.isEmpty()) {
-                vibrateDevice(50);
-                sendAngleTarget(Float.parseFloat(text));
-            } else {
-                Toast.makeText(getContext(), "Enter a target angle", Toast.LENGTH_SHORT).show();
-            }
-        });
-
         updateMotorStatus("Ready");
 
-        // Setup angle poller (always polls, faster during motor use)
+        // Setup status poller
         anglePoller = new Runnable() {
             @Override
             public void run() {
-                fetchTiltAngle();
-                // Poll faster during motor operation, slower when idle
+                fetchStatus();
                 int interval = isMotorActive ? 500 : 2000;
                 angleHandler.postDelayed(this, interval);
             }
         };
 
-        // Start continuous polling
         angleHandler.post(anglePoller);
 
         return view;
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Weather Alerts",
+                    NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("Weather-based panel repositioning alerts");
+            NotificationManager manager = requireContext().getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
     }
 
     private void setupApiService() {
@@ -142,18 +253,199 @@ public class TrackingFragment extends Fragment {
                     .build();
             apiService = retrofit.create(SolarApiService.class);
         } catch (Exception e) {
-            Log.e("TrackingFragment", "Retrofit Init Error", e);
+            Log.e(TAG, "Retrofit Init Error", e);
         }
     }
 
     /**
-     * Sets up a button to only operate while held down (safety feature)
+     * Updates the UI visibility based on the selected mode.
      */
+    private void updateUiForMode(int mode) {
+        currentMode = mode;
+        notificationSent = false;
+
+        if (mode == 2) {
+            // MANUAL: Show arc slider + weather presets
+            layoutManualControls.setVisibility(View.VISIBLE);
+            layoutWeatherPresets.setVisibility(View.VISIBLE);
+            layoutSemiAutoConfirm.setVisibility(View.GONE);
+        } else if (mode == 1) {
+            // SEMI-AUTO: Show weather presets, hide manual controls
+            layoutManualControls.setVisibility(View.GONE);
+            layoutWeatherPresets.setVisibility(View.VISIBLE);
+            // Confirmation banner shown/hidden by status polling
+        } else {
+            // AUTOMATIC: Hide everything
+            layoutManualControls.setVisibility(View.GONE);
+            layoutWeatherPresets.setVisibility(View.GONE);
+            layoutSemiAutoConfirm.setVisibility(View.GONE);
+        }
+    }
+
+    private void sendModeChange(int mode) {
+        if (apiService == null) {
+            Snackbar.make(requireView(), "Not connected to ESP32", Snackbar.LENGTH_SHORT).show();
+            return;
+        }
+
+        apiService.setMode(mode).enqueue(new Callback<SyncResponse>() {
+            @Override
+            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
+                if (getContext() == null) return;
+                if (response.isSuccessful() && response.body() != null) {
+                    Snackbar.make(requireView(), response.body().message, Snackbar.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<SyncResponse> call, Throwable t) {
+                if (getContext() == null) return;
+                Snackbar.make(requireView(), "Failed to change mode", Snackbar.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void sendWeatherOverride(String condition) {
+        if (apiService == null) return;
+        updateMotorStatus("Setting weather: " + condition + "...");
+
+        apiService.setWeatherCondition(condition).enqueue(new Callback<SyncResponse>() {
+            @Override
+            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
+                if (getContext() == null) return;
+                if (response.isSuccessful() && response.body() != null) {
+                    Snackbar.make(requireView(), response.body().message, Snackbar.LENGTH_SHORT).show();
+                }
+                updateMotorStatus("Ready");
+            }
+
+            @Override
+            public void onFailure(Call<SyncResponse> call, Throwable t) {
+                if (getContext() == null) return;
+                updateMotorStatus("Command failed");
+            }
+        });
+    }
+
+    private void sendWeatherConfirmation(int confirm) {
+        if (apiService == null) return;
+
+        apiService.confirmWeather(confirm).enqueue(new Callback<SyncResponse>() {
+            @Override
+            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
+                if (getContext() == null) return;
+                layoutSemiAutoConfirm.setVisibility(View.GONE);
+                notificationSent = false;
+                String msg = confirm == 1 ? "✓ Weather override approved" : "✗ Weather override rejected";
+                Snackbar.make(requireView(), msg, Snackbar.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onFailure(Call<SyncResponse> call, Throwable t) {
+                if (getContext() == null) return;
+                Snackbar.make(requireView(), "Confirmation failed", Snackbar.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    /**
+     * Fetches full status from ESP32 (angle + weather + mode)
+     */
+    private void fetchStatus() {
+        if (apiService == null) return;
+
+        apiService.getStatus().enqueue(new Callback<SolarStatus>() {
+            @Override
+            public void onResponse(Call<SolarStatus> call, Response<SolarStatus> response) {
+                if (getContext() == null || response.body() == null) return;
+
+                SolarStatus status = response.body();
+
+                // Update tilt angle (only when not dragging the slider)
+                if (tvTiltAngle != null && !arcSlider.isDragging()) {
+                    tvTiltAngle.setText(String.format("Tilt Angle: %.2f°", status.tiltAngle));
+                    // Sync arc slider with current angle
+                    arcSlider.setAngle((float) status.tiltAngle);
+                }
+
+                // Update weather status
+                if (tvWeatherStatus != null) {
+                    String weatherText = "Weather: " + (status.weatherCondition != null ? status.weatherCondition : "Unknown");
+                    if (status.weatherOverride >= 0) {
+                        weatherText += " → Override: " + status.weatherOverride + "°";
+                    }
+                    tvWeatherStatus.setText(weatherText);
+                }
+
+                // Sync mode selector with ESP32 state
+                if (status.mode != currentMode) {
+                    currentMode = status.mode;
+                    switch (status.mode) {
+                        case 0: rbAutomatic.setChecked(true); break;
+                        case 1: rbSemiAuto.setChecked(true); break;
+                        case 2: rbManual.setChecked(true); break;
+                    }
+                    updateUiForMode(status.mode);
+                }
+
+                // Semi-auto: show confirmation banner if weather is pending
+                if (status.mode == 1 && status.weatherPending) {
+                    String condition = status.weatherCondition != null ? status.weatherCondition : "Unknown";
+                    int angle = status.weatherOverride;
+                    tvConfirmMessage.setText("⚠ " + condition + " detected. Move panel to " + angle + "°?");
+                    layoutSemiAutoConfirm.setVisibility(View.VISIBLE);
+
+                    if (!notificationSent) {
+                        showWeatherNotification(condition, angle);
+                        notificationSent = true;
+                    }
+                } else {
+                    layoutSemiAutoConfirm.setVisibility(View.GONE);
+                    if (!status.weatherPending) {
+                        notificationSent = false;
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<SolarStatus> call, Throwable t) {
+                Log.e(TAG, "Status fetch failed", t);
+            }
+        });
+    }
+
+    private void showWeatherNotification(String condition, int angle) {
+        if (getContext() == null) return;
+
+        try {
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(requireContext(), CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                    .setContentTitle("Weather Change: " + condition)
+                    .setContentText("Move panel to " + angle + "°? Open app to approve.")
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true);
+
+            Intent intent = new Intent(requireContext(), MainActivity.class);
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                    requireContext(), 0, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            builder.setContentIntent(pendingIntent);
+
+            NotificationManagerCompat notifManager = NotificationManagerCompat.from(requireContext());
+            notifManager.notify(1001, builder.build());
+        } catch (SecurityException e) {
+            Log.e(TAG, "Notification permission not granted", e);
+        }
+    }
+
+    // =============================================
+    // MOTOR CONTROL METHODS
+    // =============================================
+
     private void setupHoldToOperateButton(Button button, String motorType, int direction, String label) {
         button.setOnTouchListener((v, event) -> {
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
-                    // Button pressed - START motor
                     vibrateDevice(50);
                     sendMotorCommand(motorType, direction);
                     updateMotorStatus(label + " ACTIVE");
@@ -164,9 +456,8 @@ public class TrackingFragment extends Fragment {
 
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    // Button released - STOP motor
                     vibrateDevice(30);
-                    sendMotorCommand(motorType, 0); // Stop
+                    sendMotorCommand(motorType, 0);
                     updateMotorStatus("Ready");
                     isMotorActive = false;
                     button.setPressed(false);
@@ -192,35 +483,26 @@ public class TrackingFragment extends Fragment {
             return;
         }
 
-        // Visual feedback
         String directionText = (dir == 1) ? "↑" : (dir == -1) ? "↓" : "STOP";
-
         if (dir != 0) {
             Log.d("MotorControl", "Starting: " + type + " " + directionText);
         }
 
-        // Send API Request
         apiService.controlMotor(type, dir).enqueue(new Callback<SyncResponse>() {
             @Override
             public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
                 if (getContext() == null) return;
-
                 if (response.isSuccessful() && response.body() != null) {
                     Log.d("MotorControl", "Success: " + response.body().message);
                 } else {
-                    Snackbar.make(requireView(),
-                            "Command failed: " + response.code(),
-                            Snackbar.LENGTH_SHORT).show();
+                    Snackbar.make(requireView(), "Command failed: " + response.code(), Snackbar.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<SyncResponse> call, Throwable t) {
                 if (getContext() == null) return;
-
-                Snackbar.make(requireView(),
-                                "Connection error. Check WiFi.",
-                                Snackbar.LENGTH_LONG)
+                Snackbar.make(requireView(), "Connection error. Check WiFi.", Snackbar.LENGTH_LONG)
                         .setAction("RETRY", v -> sendMotorCommand(type, dir))
                         .show();
             }
@@ -246,7 +528,6 @@ public class TrackingFragment extends Fragment {
         if (tvMotorStatus != null) {
             tvMotorStatus.setText("Motor Status: " + status);
 
-            // Color coding
             if (status.contains("ACTIVE")) {
                 tvMotorStatus.setTextColor(getResources().getColor(android.R.color.holo_orange_dark));
             } else if (status.equals("Ready")) {
@@ -255,53 +536,6 @@ public class TrackingFragment extends Fragment {
                 tvMotorStatus.setTextColor(getResources().getColor(android.R.color.primary_text_light));
             }
         }
-    }
-
-    private void fetchTiltAngle() {
-        if (apiService == null) return;
-
-        apiService.getStatus().enqueue(new Callback<SolarStatus>() {
-            @Override
-            public void onResponse(Call<SolarStatus> call, Response<SolarStatus> response) {
-                if (getContext() == null || response.body() == null) return;
-
-                SolarStatus status = response.body();
-                if (tvTiltAngle != null) {
-                    tvTiltAngle.setText(String.format("Tilt Angle: %.2f°", status.tiltAngle));
-                }
-            }
-
-            @Override
-            public void onFailure(Call<SolarStatus> call, Throwable t) {
-                Log.e("TrackingFragment", "Angle fetch failed", t);
-            }
-        });
-    }
-
-    private void sendAngleNudge(float delta) {
-        if (apiService == null) return;
-        updateMotorStatus(String.format("Nudging %+.1f°...", delta));
-
-        apiService.nudgeAngle(delta).enqueue(new Callback<SyncResponse>() {
-            @Override
-            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
-                if (getContext() == null) return;
-                updateMotorStatus("Positioning...");
-                // Fetch updated angle after a short delay
-                angleHandler.postDelayed(() -> fetchTiltAngle(), 500);
-                angleHandler.postDelayed(() -> {
-                    fetchTiltAngle();
-                    updateMotorStatus("Ready");
-                }, 2000);
-            }
-
-            @Override
-            public void onFailure(Call<SyncResponse> call, Throwable t) {
-                if (getContext() == null) return;
-                updateMotorStatus("Command failed");
-                Log.e("TrackingFragment", "Nudge failed", t);
-            }
-        });
     }
 
     private void sendAngleTarget(float target) {
@@ -314,7 +548,7 @@ public class TrackingFragment extends Fragment {
                 if (getContext() == null) return;
                 updateMotorStatus("Positioning...");
                 angleHandler.postDelayed(() -> {
-                    fetchTiltAngle();
+                    fetchStatus();
                     updateMotorStatus("Ready");
                 }, 3000);
             }
@@ -323,7 +557,7 @@ public class TrackingFragment extends Fragment {
             public void onFailure(Call<SyncResponse> call, Throwable t) {
                 if (getContext() == null) return;
                 updateMotorStatus("Command failed");
-                Log.e("TrackingFragment", "SetAngle failed", t);
+                Log.e(TAG, "SetAngle failed", t);
             }
         });
     }
@@ -331,17 +565,14 @@ public class TrackingFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // Restart angle polling
-        angleHandler.removeCallbacks(anglePoller); // Prevent duplicates
+        angleHandler.removeCallbacks(anglePoller);
         angleHandler.post(anglePoller);
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        // Stop angle polling
         angleHandler.removeCallbacks(anglePoller);
-        // Safety: Stop all motors when leaving the fragment
         if (isMotorActive) {
             sendMotorCommand(activeMotor, 0);
             Toast.makeText(getContext(), "Motors stopped (fragment paused)", Toast.LENGTH_SHORT).show();
