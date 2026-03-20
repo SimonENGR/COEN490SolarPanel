@@ -49,6 +49,7 @@ public class HomeFragment extends Fragment {
     private TextView tvModeDisplay;
     private TextView tvWeatherDisplay;
     private Button btnSync;
+    private Button btnCleanCycle;
     private SwipeRefreshLayout swipeRefreshLayout;
 
     // --- Networking & Logic ---
@@ -98,6 +99,7 @@ public class HomeFragment extends Fragment {
         tvModeDisplay = view.findViewById(R.id.tv_mode_display);
         tvWeatherDisplay = view.findViewById(R.id.tv_weather_display);
         btnSync = view.findViewById(R.id.btn_sync);
+        btnCleanCycle = view.findViewById(R.id.btn_clean_cycle_home);
         swipeRefreshLayout = view.findViewById(R.id.swipe_refresh);
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity());
@@ -110,6 +112,9 @@ public class HomeFragment extends Fragment {
             fetchSolarStatus();
             swipeRefreshLayout.setRefreshing(false);
         });
+
+        // --- Clean Cycle Button ---
+        btnCleanCycle.setOnClickListener(v -> showCleanCycleConfirmationDialog());
 
         // --- Sync Button with cooldown ---
         btnSync.setOnClickListener(v -> {
@@ -364,6 +369,65 @@ public class HomeFragment extends Fragment {
     }
 
 
+
+    private void showCleanCycleConfirmationDialog() {
+        if (getContext() == null) return;
+
+        new android.app.AlertDialog.Builder(getContext())
+                .setTitle("Run Cleaning Cycle?")
+                .setMessage("This will run the full automated cleaning cycle:\n\n"
+                        + "1. Wiper moves to bottom\n"
+                        + "2. Pump activates (sprays cleaning fluid)\n"
+                        + "3. Wiper sweeps back to rest position\n\n"
+                        + "Make sure the panel is clear before continuing.")
+                .setPositiveButton("Start Cleaning", (dialog, which) -> sendCleanCycleCommand())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void sendCleanCycleCommand() {
+        if (apiService == null) {
+            Snackbar.make(requireView(), "Not connected to ESP32", Snackbar.LENGTH_SHORT).show();
+            return;
+        }
+
+        btnCleanCycle.setEnabled(false);
+        btnCleanCycle.setText("Cleaning...");
+
+        apiService.runCleaningCycle(1).enqueue(new Callback<SyncResponse>() {
+            @Override
+            public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
+                if (getContext() == null) return;
+
+                btnCleanCycle.setEnabled(true);
+                btnCleanCycle.setText("Run Clean Cycle");
+
+                if (response.isSuccessful() && response.body() != null) {
+                    Snackbar.make(requireView(),
+                            "✓ Clean cycle started",
+                            Snackbar.LENGTH_LONG).show();
+                } else {
+                    Snackbar.make(requireView(),
+                            "Command failed: " + response.code(),
+                            Snackbar.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<SyncResponse> call, Throwable t) {
+                if (getContext() == null) return;
+
+                btnCleanCycle.setEnabled(true);
+                btnCleanCycle.setText("Run Clean Cycle");
+
+                Snackbar.make(requireView(),
+                                "Connection error. Check WiFi.",
+                                Snackbar.LENGTH_LONG)
+                        .setAction("RETRY", v -> sendCleanCycleCommand())
+                        .show();
+            }
+        });
+    }
 
     private void updateHomeData() {
         tvUptime.setText("System Uptime: Connecting...");
