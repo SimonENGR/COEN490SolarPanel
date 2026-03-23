@@ -116,6 +116,15 @@
                 android:layout_marginTop="16dp"
                 style="@style/Widget.Material3.Button.ElevatedButton"/>
 
+            <!-- Clean Cycle Button -->
+            <Button
+                android:id="@+id/btn_clean_cycle_home"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Run Clean Cycle"
+                android:layout_marginTop="8dp"
+                style="@style/Widget.Material3.Button.ElevatedButton"/>
+
         </LinearLayout>
     </ScrollView>
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
