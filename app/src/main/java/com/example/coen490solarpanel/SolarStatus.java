@@ -25,4 +25,6 @@ public class SolarStatus {
 
     @SerializedName("weather_pending")
     public boolean weatherPending;        // Semi-auto: waiting for user confirmation
+    @SerializedName("wiper_moving")
+    public boolean wiperMoving;           // True if auto-clean cycle is currently running
 }

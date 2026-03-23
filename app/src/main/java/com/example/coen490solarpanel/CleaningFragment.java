@@ -45,6 +45,11 @@ public class CleaningFragment extends Fragment {
     private boolean isMotorActive = false;
     private String activeMotor = "";
 
+    // --- Poller Setup ---
+    private boolean isAutoCleaning = false;
+    private android.os.Handler statusHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable statusPoller;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -86,6 +91,35 @@ public class CleaningFragment extends Fragment {
         });
 
         updateMotorStatus("Ready");
+
+        // --- NEW POLLER SETUP (SECTION B) ---
+        statusPoller = new Runnable() {
+            @Override
+            public void run() {
+                // Only poll the ESP32 if we are actively waiting for an auto-clean to finish
+                if (apiService != null && isAutoCleaning) {
+                    apiService.getStatus().enqueue(new Callback<SolarStatus>() {
+                        @Override
+                        public void onResponse(Call<SolarStatus> call, Response<SolarStatus> response) {
+                            if (getContext() == null || response.body() == null) return;
+
+                            // If ESP32 reports the wiper has hit the bottom limit and stopped
+                            if (!response.body().wiperMoving) {
+                                isAutoCleaning = false; // Stop polling
+                                updateMotorStatus("Ready"); // Reset the UI!
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Call<SolarStatus> call, Throwable t) {
+                            // Ignore occasional network drops during polling
+                        }
+                    });
+                }
+                statusHandler.postDelayed(this, 2000); // Check every 2 seconds
+            }
+        };
+        statusHandler.post(statusPoller);
 
         return view;
     }
@@ -195,13 +229,15 @@ public class CleaningFragment extends Fragment {
         }
 
         updateMotorStatus("Auto Clean Cycle ACTIVE");
-        
+
         apiService.runCleaningCycle(1).enqueue(new Callback<SyncResponse>() {
             @Override
             public void onResponse(Call<SyncResponse> call, Response<SyncResponse> response) {
                 if (getContext() == null) return;
 
                 if (response.isSuccessful() && response.body() != null) {
+                    // --- SECTION C UPDATE: Tell the poller to start watching! ---
+                    isAutoCleaning = true;
                     Snackbar.make(requireView(), "✓ Auto Clean Cycle Started", Snackbar.LENGTH_SHORT).show();
                 } else {
                     Snackbar.make(requireView(),
@@ -214,7 +250,7 @@ public class CleaningFragment extends Fragment {
             @Override
             public void onFailure(Call<SyncResponse> call, Throwable t) {
                 if (getContext() == null) return;
-                
+
                 updateMotorStatus("Command failed");
                 Snackbar.make(requireView(),
                                 "Connection error. Check WiFi.",
@@ -255,9 +291,22 @@ public class CleaningFragment extends Fragment {
         }
     }
 
+    // --- SECTION D UPDATES: Lifecycle Management ---
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (statusHandler != null && statusPoller != null) {
+            statusHandler.post(statusPoller);
+        }
+    }
+
     @Override
     public void onPause() {
         super.onPause();
+        if (statusHandler != null && statusPoller != null) {
+            statusHandler.removeCallbacks(statusPoller); // Stop polling when fragment isn't visible
+        }
+
         // Safety: Stop all motors when leaving the fragment
         if (isMotorActive) {
             sendMotorCommand(activeMotor, 0);
