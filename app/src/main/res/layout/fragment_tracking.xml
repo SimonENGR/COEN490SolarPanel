@@ -150,39 +150,59 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
+                android:orientation="vertical"
                 android:layout_marginTop="8dp">
 
-                <Button
-                    android:id="@+id/btn_weather_overcast"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="☁ Overcast\n90°"
-                    android:layout_marginEnd="4dp"/>
+                    android:orientation="horizontal">
 
-                <Button
-                    android:id="@+id/btn_weather_rain"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="🌧 Rain\n60°"
-                    android:layout_marginEnd="4dp"/>
+                    <Button
+                        android:id="@+id/btn_weather_overcast"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="☁ Overcast\n90°"
+                        android:layout_marginEnd="4dp"/>
 
-                <Button
-                    android:id="@+id/btn_weather_snow"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="❄ Snow\n15°"
-                    android:layout_marginEnd="4dp"/>
+                    <Button
+                        android:id="@+id/btn_weather_rain"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🌧 Rain\n60°"
+                        android:layout_marginEnd="4dp"/>
 
-                <Button
-                    android:id="@+id/btn_weather_clear"
-                    android:layout_width="0dp"
+                    <Button
+                        android:id="@+id/btn_weather_snow"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="❄ Snow\n15°"/>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="☀ Clear\nSun"/>
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/btn_weather_wind"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="💨 Wind\n90°"
+                        android:layout_marginEnd="4dp"/>
+
+                    <Button
+                        android:id="@+id/btn_weather_clear"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="☀ Sunny\nSun"/>
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 

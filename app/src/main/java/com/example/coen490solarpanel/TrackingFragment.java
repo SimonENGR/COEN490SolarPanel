@@ -68,7 +68,7 @@ public class TrackingFragment extends Fragment {
     private ArcSliderView arcSlider;
 
     // --- Weather Preset Buttons ---
-    private Button btnWeatherOvercast, btnWeatherRain, btnWeatherSnow, btnWeatherClear;
+    private Button btnWeatherOvercast, btnWeatherRain, btnWeatherSnow, btnWeatherWind, btnWeatherClear;
 
     // --- Networking ---
     private SolarApiService apiService;
@@ -83,6 +83,7 @@ public class TrackingFragment extends Fragment {
     private Runnable anglePoller;
     private int currentMode = 0;
     private boolean notificationSent = false;
+    private double lastElevation = -1;
 
     @Nullable
     @Override
@@ -120,6 +121,7 @@ public class TrackingFragment extends Fragment {
         btnWeatherOvercast = view.findViewById(R.id.btn_weather_overcast);
         btnWeatherRain = view.findViewById(R.id.btn_weather_rain);
         btnWeatherSnow = view.findViewById(R.id.btn_weather_snow);
+        btnWeatherWind = view.findViewById(R.id.btn_weather_wind);
         btnWeatherClear = view.findViewById(R.id.btn_weather_clear);
 
         // Get Vibrator Service
@@ -170,9 +172,16 @@ public class TrackingFragment extends Fragment {
             vibrateDevice(30);
             sendWeatherOverride("snow");
         });
+        btnWeatherWind.setOnClickListener(v -> {
+            vibrateDevice(30);
+            sendWeatherOverride("wind");
+        });
         btnWeatherClear.setOnClickListener(v -> {
             vibrateDevice(30);
             sendWeatherOverride("clear");
+            if (lastElevation > 0) {
+                sendAngleTarget((float) lastElevation);
+            }
         });
 
         // --- ARC SLIDER ---
@@ -360,6 +369,7 @@ public class TrackingFragment extends Fragment {
                 if (getContext() == null || response.body() == null) return;
 
                 SolarStatus status = response.body();
+                lastElevation = status.elevation;
 
                 // Update tilt angle (only when not dragging the slider)
                 if (tvTiltAngle != null && !arcSlider.isDragging()) {
